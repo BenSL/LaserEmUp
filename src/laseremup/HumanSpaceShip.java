@@ -3,9 +3,15 @@ package laseremup;
 import java.awt.Point;
 import java.awt.Rectangle;
 
+/**
+ * HumanSpaceShip
+ * abgeleitet von SpaceShip
+ */
 public class HumanSpaceShip extends SpaceShip {
     
+    // Prozess für Flug nach rechts, links, Prozess für Laserschüsse
     private Thread hFlyingThread, shootingThread;
+    // Status der Laserkanone
     private boolean shooting;
 
     public HumanSpaceShip(Point position, double width, Rectangle bounds, double speed) {
@@ -13,12 +19,14 @@ public class HumanSpaceShip extends SpaceShip {
         setSpeed(speed);
     }
 
+    /**
+     * Fliege nach rechts
+     */
     public void moveRight() {
         if(hFlyingThread != null) {
             hFlyingThread.interrupt();
         }
         hFlyingThread = new Thread(new Runnable() {
-
             @Override
             public void run() {
                 while(!Thread.interrupted()) {
@@ -38,12 +46,14 @@ public class HumanSpaceShip extends SpaceShip {
         hFlyingThread.start();
     }
 
+    /**
+     * Fliege nach links
+     */
     public void moveLeft() {
         if(hFlyingThread != null) {
             hFlyingThread.interrupt();
         }
         hFlyingThread = new Thread(new Runnable() {
-
             @Override
             public void run() {
                 while(!Thread.interrupted()) {
@@ -63,16 +73,20 @@ public class HumanSpaceShip extends SpaceShip {
         hFlyingThread.start();
     }
 
+    /**
+     * Schiesse
+     */
     public void shoot() {
+        // Falls bereits geschossen wird, nicht erneut schiessen
         if(isShooting()) {
             return;
         }
         shootingThread = new Thread(new Runnable() {
-
             @Override
             public void run() {
                 setShooting(true);
                 try {
+                    // Ein Schuss geht 100 ms
                     Thread.sleep(100l);
                 } catch (InterruptedException ex) {
                 } finally {
@@ -93,7 +107,9 @@ public class HumanSpaceShip extends SpaceShip {
 
     @Override
     public void destroy() {
+        // Flugprozess nach linkes/rechts beenden
         hFlyingThread.interrupt();
+        // Schiessenprozess beenden
         shootingThread.interrupt();
     }
     
