@@ -8,11 +8,11 @@ public class AlienSpaceShip extends SpaceShip {
     
     private Thread flyingThread;
 
-    public AlienSpaceShip(Point position, double speed, double width, Rectangle bounds) {
-        super(position, speed, width, bounds);
+    public AlienSpaceShip(Point position, double width, Rectangle bounds, double speed) {
+        super(position, width, bounds);
+        setSpeed(speed);
     }
     
-    @Override
     public void fly() {
         
         this.flyingThread = new Thread(new Runnable() {
@@ -40,12 +40,7 @@ public class AlienSpaceShip extends SpaceShip {
                     }
                     x = xNew;
                     
-                    // if yNew > canvas height --> destroy thread
-                    double yNew = y + moveForward;
-                    if(yNew > bounds.getHeight()) {
-                        destroy();
-                    }
-                    y = yNew;
+                    y = y + moveForward;
 
                     position.setLocation(x, y);
                 }

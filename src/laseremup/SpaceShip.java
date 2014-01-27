@@ -18,16 +18,13 @@ public abstract class SpaceShip {
     protected double speed;
     protected double width;
 
-    public SpaceShip(Point position, double speed, double width, Rectangle bounds) {
+    public SpaceShip(Point position, double width, Rectangle bounds) {
         this.bounds = bounds;
         this.position = position;
-        this.speed = speed;
         this.width = width;
     }
 
-    public void fly() {}
-    
-    public void destroy() {}
+    public abstract void destroy();
 
     public Point getPosition() {
         return position;
@@ -44,5 +41,14 @@ public abstract class SpaceShip {
     public void setWidth(double width) {
         this.width = width;
     }
+
+    public double getSpeed() {
+        return speed;
+    }
+
+    public void setSpeed(double speed) {
+        this.speed = speed;
+    }
+    
     
 }

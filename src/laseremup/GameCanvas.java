@@ -2,27 +2,36 @@ package laseremup;
 
 import java.awt.Canvas;
 import java.awt.Color;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.RenderingHints;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferStrategy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 
 public class GameCanvas extends Canvas implements KeyListener {
     
-    public static final int         CONFIG_LIVES = 3;
+    public static final int         CONFIG_LIVES = 2;
     public static final double      CONFIG_SPEED_ALIENS = SpaceShip.SPEED_FAST;
     public static final double      CONFIG_SPEED_HUMANS = SpaceShip.SPEED_FAST;
     public static final double      CONFIG_WIDTH_ALIENS = SpaceShip.WIDTH_MEDIUM;
     public static final double      CONFIG_WIDTH_HUMANS = SpaceShip.WIDTH_SMALL;
+    public static final long        CONFIG_MAX_SPAWN_TIME = 5000l;
+    public static final long        CONFIG_INC_LEVEL_TIME = 30000l;
     
-    ArrayList<AlienSpaceShip> asships = new ArrayList<AlienSpaceShip>();
-    HumanSpaceShip hsship;
+    private List<AlienSpaceShip> alienSpaceShips;
+    private double alienSpaceShipSpeed;
+    private int livesRemaing;
+    private HumanSpaceShip humanSpaceShip;
 
     public GameCanvas() {
         addKeyListener(this);
@@ -31,6 +40,12 @@ public class GameCanvas extends Canvas implements KeyListener {
     
     public void start() {
         
+        // init game variables
+        alienSpaceShips = Collections.synchronizedList(new ArrayList<AlienSpaceShip>());
+        alienSpaceShipSpeed = CONFIG_SPEED_ALIENS;
+        livesRemaing = CONFIG_LIVES;
+        humanSpaceShip = null;
+        
         // 3 buffers
         this.createBufferStrategy(3);
         final BufferStrategy bs = this.getBufferStrategy();
@@ -38,9 +53,9 @@ public class GameCanvas extends Canvas implements KeyListener {
         // humanspaceship
         int hsshipX = (int) Math.round((this.getBounds().getWidth()/2)-(CONFIG_WIDTH_HUMANS/2));
         int hsshipY = (int) Math.round(this.getBounds().getHeight() - 20);
-        hsship = new HumanSpaceShip(new Point(hsshipX, hsshipY), CONFIG_SPEED_HUMANS, CONFIG_WIDTH_HUMANS, GameCanvas.this.getBounds());
+        humanSpaceShip = new HumanSpaceShip(new Point(hsshipX, hsshipY), CONFIG_WIDTH_HUMANS, GameCanvas.this.getBounds(), CONFIG_SPEED_HUMANS);
         
-        // generate new alienspaceships < every 5 seconds
+        // generate new alienspaceships < max spawn time
         new Thread(new Runnable() {
             
             Random rg = new Random();
@@ -49,20 +64,39 @@ public class GameCanvas extends Canvas implements KeyListener {
             public void run() {
                 while(!Thread.interrupted()) {
                     try {
-                        Thread.sleep((long) (5000d * rg.nextDouble()));
+                        Thread.sleep((long) (CONFIG_MAX_SPAWN_TIME * rg.nextDouble()));
                     } catch (InterruptedException ex) {}
                     int y = 1;
                     int x = (int) Math.round(GameCanvas.this.getBounds().getWidth() * rg.nextDouble());
-                    AlienSpaceShip newShip = new AlienSpaceShip(new Point(x, y), CONFIG_SPEED_ALIENS, CONFIG_WIDTH_ALIENS, GameCanvas.this.getBounds());
-                    asships.add(newShip);
+                    AlienSpaceShip newShip = new AlienSpaceShip(new Point(x, y), CONFIG_WIDTH_ALIENS, GameCanvas.this.getBounds(), alienSpaceShipSpeed);
+                    alienSpaceShips.add(newShip);
                     newShip.fly();
                 }
                 
             }
         }, "generateAlienSpaceShips").start();
         
+        // increase speed = level time
+        new Thread(new Runnable() {
+
+            @Override
+            public void run() {
+                while(!Thread.interrupted()) {
+                    try {
+                        Thread.sleep(CONFIG_INC_LEVEL_TIME);
+                    } catch (InterruptedException ex) {
+                        break;
+                    }
+                    // increasing speed 20 percent
+                    alienSpaceShipSpeed = 1.2d * alienSpaceShipSpeed;
+                    humanSpaceShip.setSpeed(1.2d * humanSpaceShip.getSpeed());
+                }
+            }
+        }, "increaseAlienSpaceShipSpeed").start();
         
-        // paint everything
+        
+        
+        // game logic & paint everything
         new Thread(new Runnable() {
 
             @Override
@@ -75,44 +109,91 @@ public class GameCanvas extends Canvas implements KeyListener {
                     g.setColor(Color.black);
                     g.fillRect(0, 0, GameCanvas.this.getBounds().width, GameCanvas.this.getBounds().height);
                     // draw humanspaceship
-                    int x = hsship.getPosition().x;
-                    int y = hsship.getPosition().y;
+                    int x = humanSpaceShip.getPosition().x;
+                    int y = humanSpaceShip.getPosition().y;
                     g.setColor(Color.white);
                     Polygon p = new Polygon();
                     Point hssLeft = new Point(x, y);
-                    Point hssRight = new Point(x + (int) Math.round(hsship.getWidth()), y);
-                    Point hssFront = new Point(x + (int) Math.round(hsship.getWidth()/2), y-10);
+                    Point hssRight = new Point(x + (int) Math.round(humanSpaceShip.getWidth()), y);
+                    Point hssFront = new Point(x + (int) Math.round(humanSpaceShip.getWidth()/2), y-10);
                     p.addPoint(hssLeft.x, hssLeft.y);
                     p.addPoint(hssRight.x, hssRight.y);
                     p.addPoint(hssFront.x, hssFront.y);
                     g.fillPolygon(p);
                     // draw laser
-                    if(hsship.isShooting()) {
+                    if(humanSpaceShip.isShooting()) {
                         g.setColor(Color.yellow);
                         g.drawLine(hssFront.x, hssFront.y, hssFront.x, getBounds().y);
                     }
                     // draw & destroy alienspaceships by lazer
-                    Iterator<AlienSpaceShip> it = asships.iterator();
-                    while(it.hasNext()) {
-                        AlienSpaceShip ship = it.next();
-                        if(hsship.isShooting() 
-                                && ship.getPosition().x <= hssFront.x 
-                                && (ship.getPosition().x+(int) Math.round(ship.getWidth())) >= hssFront.x) {
-                            ship.destroy();
-                            it.remove();
-                            continue;
+                    synchronized(alienSpaceShips) {
+                        Iterator<AlienSpaceShip> it = alienSpaceShips.iterator();
+                        while(it.hasNext()) {
+                            AlienSpaceShip ship = it.next();
+                            // alien ship hidden by laser
+                            if(humanSpaceShip.isShooting() 
+                                    && ship.getPosition().x <= hssFront.x 
+                                    && (ship.getPosition().x+(int) Math.round(ship.getWidth())) >= hssFront.x) {
+                                // destroy ship
+                                ship.destroy();
+                                it.remove();
+                                continue;
+                            }
+                            // alien ship reached earth -> 1 down
+                            if(ship.getPosition().y > getBounds().getHeight()) {
+                                ship.destroy();
+                                it.remove();
+                                livesRemaing--;
+                                continue;
+                            }
+                            // alien ship collides with humanspaceship
+                            Rectangle2D alienSpaceShipShapeCollisionModel = new Rectangle2D.Double(ship.getPosition().x, ship.getPosition().y, (int) Math.round(ship.getWidth()), 10d);
+                            Ellipse2D.Double alienSpaceShipShape = new Ellipse2D.Double(ship.getPosition().x, ship.getPosition().y, (int) Math.round(ship.getWidth()), 10d);
+                            if(p.intersects(alienSpaceShipShapeCollisionModel)) {
+                                ship.destroy();
+                                it.remove();
+                                livesRemaing--;
+                                continue;
+                            }
+                            // draw alien ship
+                            g.setColor(Color.red);
+                            g.fill(alienSpaceShipShape);
                         }
+                    }
+                    // draw remaining lives or end game
+                    if(livesRemaing >= 0) {
+                        g.setColor(Color.GREEN);
+                        g.drawString(String.valueOf(livesRemaing), 25, 25);
+                    }else {
+                        FontMetrics fm = g.getFontMetrics();
+                        String gameOverStr = "GAME OVER";
+                        Rectangle2D gameOverStrBounds = fm.getStringBounds(gameOverStr, g);
                         g.setColor(Color.red);
-                        g.fillOval(ship.getPosition().x, ship.getPosition().y, (int) Math.round(ship.getWidth()), 10);
+                        int gameOverX = (int) Math.round((getBounds().getWidth()/2) - (gameOverStrBounds.getWidth()/2));
+                        int gameOverY = (int) Math.round((getBounds().getHeight()/2) - (gameOverStrBounds.getHeight()/2));
+                        g.drawString(gameOverStr, gameOverX, gameOverY);
+                        // write out buffer
+                        g.dispose();
+                        bs.show();
+                        break;
                     }
                     // into buffer
                     g.dispose();
                     bs.show();
                 }
+                cleanUpAfterGame();
             }
         }, "drawEverything").start();
         
         this.requestFocus();
+    }
+    
+    private void cleanUpAfterGame() {
+        humanSpaceShip.destroy();
+        for(AlienSpaceShip ship : alienSpaceShips) {
+            ship.destroy();
+        }
+        alienSpaceShips.clear();
     }
 
     @Override
@@ -126,15 +207,15 @@ public class GameCanvas extends Canvas implements KeyListener {
         }
         // move humanspaceship right
         if(e.getKeyCode() == KeyEvent.VK_RIGHT) {
-            hsship.moveRight();
+            humanSpaceShip.moveRight();
         }
         // move humanspaceship left
         if(e.getKeyCode() == KeyEvent.VK_LEFT) {
-            hsship.moveLeft();
+            humanSpaceShip.moveLeft();
         }
         // make humanspaceship laser em up
         if(e.getKeyCode() == KeyEvent.VK_SPACE) {
-            hsship.shoot();
+            humanSpaceShip.shoot();
         }
     }
 
